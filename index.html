@@ -24,11 +24,25 @@
     <script>
         let timerInterval;
         let timeLeft = sessionStorage.getItem('pomodoroTime') ? parseInt(sessionStorage.getItem('pomodoroTime')) : 25 * 60; // 25 minutes in seconds
+        let isPaused = false; // Track pause state
+        let focusData = JSON.parse(localStorage.getItem('focusData')) || {}; // Track daily focus time
 
         const timerDisplay = document.getElementById('timer');
         const startButton = document.getElementById('startButton');
         const resetButton = document.getElementById('resetButton');
         const deleteButton = document.getElementById('deleteButton');
+
+        const pauseButton = document.createElement('button');
+        pauseButton.id = 'pauseButton';
+        pauseButton.className = 'btn btn-secondary btn-lg mt-3';
+        pauseButton.textContent = 'Pause';
+        startButton.insertAdjacentElement('afterend', pauseButton);
+
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'mt-5';
+        document.body.appendChild(tableContainer);
+
+        const audio = new Audio('https://www.soundjay.com/button/beep-07.wav'); // Add tone
 
         function updateTimerDisplay() {
             const minutes = Math.floor(timeLeft / 60);
@@ -36,8 +50,36 @@
             timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
 
+        function updateFocusData() {
+            const today = new Date().toISOString().split('T')[0];
+            focusData[today] = (focusData[today] || 0) + 1;
+            localStorage.setItem('focusData', JSON.stringify(focusData));
+        }
+
+        function displayFocusTable() {
+            tableContainer.innerHTML = '<h2>Daily Focus Time</h2>';
+            const table = document.createElement('table');
+            table.className = 'table table-bordered';
+            table.innerHTML = '<thead><tr><th>Date</th><th>Focus Time (minutes)</th></tr></thead>';
+            const tbody = document.createElement('tbody');
+
+            for (const [date, minutes] of Object.entries(focusData)) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${date}</td><td>${minutes}</td>`;
+                tbody.appendChild(row);
+            }
+
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
+        }
+
         function startTimer() {
             if (timerInterval) return; // Prevent multiple intervals
+
+            if (isPaused) {
+                isPaused = false;
+                pauseButton.textContent = 'Pause';
+            }
 
             timerInterval = setInterval(() => {
                 if (timeLeft > 0) {
@@ -47,9 +89,23 @@
                 } else {
                     clearInterval(timerInterval);
                     timerInterval = null;
+                    updateFocusData();
+                    displayFocusTable();
+                    audio.play(); // Play tone when timer stops
                     alert('Time is up!');
                 }
             }, 1000);
+        }
+
+        function pauseTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                isPaused = true;
+                pauseButton.textContent = 'Resume';
+            } else if (isPaused) {
+                startTimer();
+            }
         }
 
         function resetTimer() {
@@ -68,11 +124,19 @@
             updateTimerDisplay();
         }
 
+        pauseButton.addEventListener('click', pauseTimer);
         startButton.addEventListener('click', startTimer);
-        resetButton.addEventListener('click', resetTimer);
-        deleteButton.addEventListener('click', deleteSession);
+        resetButton.addEventListener('click', () => {
+            resetTimer();
+            displayFocusTable();
+        });
+        deleteButton.addEventListener('click', () => {
+            deleteSession();
+            displayFocusTable();
+        });
 
         updateTimerDisplay();
+        displayFocusTable();
     </script>
 </body>
 </html>
